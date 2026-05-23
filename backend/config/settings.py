@@ -2,6 +2,8 @@ from datetime import timedelta
 from pathlib import Path
 import os
 
+import dj_database_url
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -11,7 +13,16 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
 DEBUG = env_bool("DEBUG", True)
-ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")]
+
+
+def env_list(name: str, default: str = "") -> list[str]:
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
+if os.getenv("RAILWAY_PUBLIC_DOMAIN"):
+    ALLOWED_HOSTS.append(os.getenv("RAILWAY_PUBLIC_DOMAIN"))
+ALLOWED_HOSTS.extend([".up.railway.app", ".railway.app"])
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -36,6 +47,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -65,7 +77,15 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-if env_bool("USE_SQLITE", DEBUG and not os.getenv("POSTGRES_HOST")):
+if os.getenv("DATABASE_URL"):
+    DATABASES = {
+        "default": dj_database_url.config(
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=env_bool("DATABASE_SSL_REQUIRE", False),
+        )
+    }
+elif env_bool("USE_SQLITE", DEBUG and not os.getenv("POSTGRES_HOST")):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -116,11 +136,19 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")]
+CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+for origin in env_list("FRONTEND_URL"):
+    if origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(origin)
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
+if os.getenv("RAILWAY_PUBLIC_DOMAIN"):
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
-if env_bool("USE_SQLITE", False):
+if env_bool("USE_SQLITE", False) or not os.getenv("REDIS_URL"):
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -143,6 +171,7 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
