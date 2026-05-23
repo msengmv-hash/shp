@@ -6,6 +6,11 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5173,
+    allowedHosts: [".up.railway.app"],
+  },
+  preview: {
+    host: "0.0.0.0",
+    allowedHosts: [".up.railway.app"],
   },
   resolve: {
     alias: {
