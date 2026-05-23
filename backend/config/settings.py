@@ -140,10 +140,15 @@ CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173,h
 for origin in env_list("FRONTEND_URL"):
     if origin not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(origin)
+CORS_ALLOWED_ORIGIN_REGEXES = env_list("CORS_ALLOWED_ORIGIN_REGEXES")
+if not DEBUG:
+    CORS_ALLOWED_ORIGIN_REGEXES.append(r"^https://.*\.up\.railway\.app$")
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
 if os.getenv("RAILWAY_PUBLIC_DOMAIN"):
     CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
+if not DEBUG:
+    CSRF_TRUSTED_ORIGINS.append("https://*.up.railway.app")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
